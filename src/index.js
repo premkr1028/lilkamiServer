@@ -49,18 +49,18 @@ app.post('/api/webhooks/clerk', bodyParser.raw({ type: 'application/json' }), as
   const headers = req.headers;
   try {
     const evt = wh.verify(payload, headers);
-    const { id, first_name, last_name, username } = evt.data;
+   
     const eventType = evt.type;
     console.log(wh, payload, headers, evt, eventType)
 
     if (eventType === 'user.created') {
-      const { first_name, last_name, image_url, username, email_addresses } = evt.data;
-
-      const email = email_addresses[0]?.email_address;
-      const fullName = `${first_name} ${last_name}`;
-      const user = await userModel.create({ clerkId: id, email, username, fullName, })
+      userData = evt.data;
+      const userName = userData.username
+      const email = userData.email_addresses[0].email_address
+      const fullName = `${userData.first_name} ${userData.last_name}`;
+      const user = await userModel.create({ clerkId: userData.id, email, userName, fullName, })
       // Example: await User.create({ clerkId: id, name: `${first_name} ${last_name}`, username });
-      console.log(`User ${id} was created`);
+    
       console.log(user)
     }
 
@@ -74,9 +74,6 @@ app.post('/api/webhooks/clerk', bodyParser.raw({ type: 'application/json' }), as
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-/**
- * 🏠 Health Check
- */
 app.get("/", (req, res) => {
   res.send("Wallpaper API is running 🚀");
 });
