@@ -8,6 +8,7 @@ import { Webhook } from "svix";
 import wallpaperModel from "./models/image.model.js";
 import userModel from "./models/user.model.js";
 import bodyParser from "body-parser";
+import connectDB from "./db/db.js";
 dotenv.config();
 
 const app = express();
@@ -147,5 +148,5 @@ app.get("/getWall", async (req, res) => {
 
 // Favicon Fix
 app.get('/favicon.ico', (req, res) => res.status(204).end());
-
+connectDB()
 export default app;  
