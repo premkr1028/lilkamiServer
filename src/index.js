@@ -25,7 +25,7 @@ const imagekit = new ImageKit({
   urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT
 });
 
-
+app.get('/favicon.ico', (req, res) => res.status(204).end());
 // Multer temp storage
 const upload = multer({ dest: "temp/" });
 
