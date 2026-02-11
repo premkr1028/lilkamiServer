@@ -24,7 +24,9 @@ const imagekit = new ImageKit({
   privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
   urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT
 });
-
+app.get("/", (req,res)=>{
+  res.send("lilkami")
+})
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 // Multer temp storage
 const upload = multer({ dest: "temp/" });
