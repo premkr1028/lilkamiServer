@@ -51,9 +51,9 @@ app.post('/api/webhooks/clerk', bodyParser.raw({ type: 'application/json' }), as
     const evt = wh.verify(payload, headers);
    
     const eventType = evt.type;
-    console.log(wh, payload, headers, evt, eventType)
 
     if (eventType === 'user.created') {
+      console.log("in")
       userData = evt.data;
       const userName = userData.username
       const email = userData.email_addresses[0].email_address
