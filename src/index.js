@@ -44,6 +44,7 @@ app.post(
   '/api/webhooks/clerk', 
   express.raw({ type: 'application/json' }), 
   async (req, res) => {
+    console.log("megha")
     const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET;
 
     if (!WEBHOOK_SECRET) {
