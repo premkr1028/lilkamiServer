@@ -1,88 +1,117 @@
-
 import express from "express";
 import multer from "multer";
-import fs from "fs";
 import dotenv from "dotenv";
+import cors from "cors";
+import ImageKit from "imagekit";
+
+// Models
 import wallpaperModel from "./models/image.model.js";
-import cors from "cors"
+import userModel from "./models/user.model.js";
+
 dotenv.config();
+
 const app = express();
+
+// --- Middleware ---
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
 app.use(cors({
   origin: "http://localhost:5173",
   credentials: true
 }));
-console.log(process.env.IMAGEKIT_PUBLIC_KEY)
 
-import ImageKit from "imagekit";
-import userModel from "./models/user.model.js";
-
+// --- ImageKit Configuration ---
 const imagekit = new ImageKit({
   publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
   privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
   urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT
 });
-app.get("/", (req,res)=>{
-  res.send("lilkami")
-})
-app.get('/favicon.ico', (req, res) => res.status(204).end());
-// Multer temp storage
-const upload = multer({ dest: "temp/" });
 
-// 📤 Upload Wallpaper
+// --- Multer Configuration (Memory Storage) ---
+// This keeps files in RAM temporarily instead of writing to your hard drive
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 } // Optional: Limit size to 5MB
+});
+
+// --- Routes ---
+
+// Health Check
+app.get("/", (req, res) => {
+  res.send("Wallpaper API is running 🚀");
+});
+
+// Favicon Fix
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
+/**
+ * 📤 Upload Wallpaper
+ */
 app.post("/upload", upload.single("image"), async (req, res) => {
   try {
-    const data = req.body;
+    if (!req.file) {
+      return res.status(400).json({ message: "No image file provided" });
+    }
 
-    const fileBuffer = fs.readFileSync(req.file.path);
+    const { title, description, tags } = req.body;
 
+    // 1. Upload to ImageKit via Buffer
     const response = await imagekit.upload({
-      file: fileBuffer,
+      file: req.file.buffer,
       fileName: req.file.originalname,
       folder: "/wallpapers"
     });
 
-    fs.unlinkSync(req.file.path); // remove temp file
-
+    // 2. Save to MongoDB
     const newWallpaper = await wallpaperModel.create({
-      title: data.title,
-      description: data.description,
-      tags: data.tags?.split(",") || [],
+      title,
+      description,
+      tags: tags ? tags.split(",").map(tag => tag.trim()) : [],
       imageUrl: response.url
     });
 
     res.status(201).json({
-      message: "Wallpaper uploaded",
+      message: "Wallpaper uploaded successfully",
       wallpaper: newWallpaper
     });
 
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Upload failed" });
+    console.error("Upload error:", error);
+    res.status(500).json({ message: "Upload failed", error: error.message });
   }
 });
+
+/**
+ * 👤 User Sign Up / Sync
+ */
 app.post("/signUp", async (req, res) => {
   try {
-    const data = req.body;
-    const user = await userModel.create({
-      userId: data.userId,
-      userName: data.userName,
-      likedWallpapers: data.likedWallpapers || [],
-      postWallpapers: data.postWallpapers || []
-    });
+    const { userId, userName, likedWallpapers, postWallpapers } = req.body;
 
-    res.status(201).json({
-      message: "user created",
-      user: user
-    });
+    // Check if user already exists
+    let user = await userModel.findOne({ userId });
+
+    if (!user) {
+      user = await userModel.create({
+        userId,
+        userName,
+        likedWallpapers: likedWallpapers || [],
+        postWallpapers: postWallpapers || []
+      });
+      return res.status(201).json({ message: "User created", user });
+    }
+
+    res.status(200).json({ message: "User already exists", user });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Error creating user" });
+    console.error("Sign up error:", error);
+    res.status(500).json({ message: "Error processing user data" });
   }
 });
-// 📥 Get All Wallpapers
+
+/**
+ * 📥 Get All Wallpapers
+ */
 app.get("/getWall", async (req, res) => {
   try {
     const allWallpapers = await wallpaperModel.find().sort({ createdAt: -1 });
@@ -93,6 +122,7 @@ app.get("/getWall", async (req, res) => {
     });
 
   } catch (error) {
+    console.error("Fetch error:", error);
     res.status(500).json({ message: "Failed to fetch wallpapers" });
   }
 });
