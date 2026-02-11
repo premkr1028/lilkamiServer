@@ -47,27 +47,43 @@ app.post('/api/webhooks/clerk', bodyParser.raw({ type: 'application/json' }), as
   const wh = new Webhook(WEBHOOK_SECRET);
   const payload = req.body.toString();
   const headers = req.headers;
-  try {
+ try {
     const evt = wh.verify(payload, headers);
-   
-    const eventType = evt.type;
+    const { type: eventType, data: userData } = evt;
 
     if (eventType === 'user.created') {
-      console.log("in")
-      userData = evt.data;
-      const userName = userData.username
-      const email = userData.email_addresses[0].email_address
-      const fullName = `${userData.first_name} ${userData.last_name}`;
-      const user = await userModel.create({ clerkId: userData.id, email, userName, fullName, })
-      // Example: await User.create({ clerkId: id, name: `${first_name} ${last_name}`, username });
-    
-      console.log(user)
+        // Extract with fallbacks to avoid crashes
+        const { 
+            id: clerkId, 
+            first_name, 
+            last_name, 
+            username, 
+            email_addresses 
+        } = userData;
+
+        const email = email_addresses?.[0]?.email_address;
+        const fullName = `${first_name ?? ''} ${last_name ?? ''}`.trim();
+        
+        // Use findOneAndUpdate with 'upsert' to handle potential retry duplicates
+        const user = await userModel.findOneAndUpdate(
+            { clerkId },
+            { 
+                clerkId, 
+                email, 
+                userName: username || email.split('@')[0], // Fallback if no username
+                fullName 
+            },
+            { upsert: true, new: true }
+        );
+
+        console.log('User synced:', user._id);
     }
 
     return res.status(200).json({ success: true });
-  } catch (err) {
+} catch (err) {
+    console.error('Webhook Error:', err.message);
     return res.status(400).json({ message: 'Webhook verification failed' });
-  }
+}
 });
 
 // Standard JSON middleware for all other routes
