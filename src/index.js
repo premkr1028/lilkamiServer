@@ -47,42 +47,38 @@ app.post('/api/webhooks/clerk', bodyParser.raw({ type: 'application/json' }), as
   const wh = new Webhook(WEBHOOK_SECRET);
   const payload = req.body.toString();
   const headers = req.headers;
- try {
-    const evt = wh.verify(payload, headers);
-    const { type: eventType, data: userData } = evt;
+try {
+  const evt = wh.verify(payload, headers);
+  const eventType = evt.type;
 
-    if (eventType === 'user.created') {
-        // Extract with fallbacks to avoid crashes
-        const { 
-            id: clerkId, 
-            first_name, 
-            last_name, 
-            username, 
-            email_addresses 
-        } = userData;
+  if (eventType === 'user.created') {
+    const userData = evt.data;
+    
+    // 1. Safe data extraction
+    const { id, first_name, last_name, username, email_addresses } = userData;
+    const email = email_addresses?.[0]?.email_address;
+    const fullName = `${first_name ?? ''} ${last_name ?? ''}`.trim();
 
-        const email = email_addresses?.[0]?.email_address;
-        const fullName = `${first_name ?? ''} ${last_name ?? ''}`.trim();
-        
-        // Use findOneAndUpdate with 'upsert' to handle potential retry duplicates
-        const user = await userModel.findOneAndUpdate(
-            { clerkId },
-            { 
-                clerkId, 
-                email, 
-                userName: username || email.split('@')[0], // Fallback if no username
-                fullName 
-            },
-            { upsert: true, new: true }
-        );
-
-        console.log('User synced:', user._id);
+    // 2. Check if user already exists to prevent "Duplicate Key" errors
+    const existingUser = await userModel.findOne({ clerkId: id });
+    
+    if (!existingUser) {
+      const user = await userModel.create({ 
+        clerkId: id, 
+        email, 
+        userName: username || `user_${id.slice(-6)}`, // Fallback username
+        fullName, 
+      });
+      console.log("User successfully created:", user._id);
+    } else {
+      console.log("User already exists, skipping creation.");
     }
+  }
 
-    return res.status(200).json({ success: true });
+  return res.status(200).json({ success: true });
 } catch (err) {
-    console.error('Webhook Error:', err.message);
-    return res.status(400).json({ message: 'Webhook verification failed' });
+  console.error("Webhook Error:", err.message);
+  return res.status(400).json({ message: 'Webhook verification failed' });
 }
 });
 
