@@ -3,19 +3,18 @@ import multer from "multer";
 import dotenv from "dotenv";
 import cors from "cors";
 import ImageKit from "imagekit";
-import bodyParser from "body-parser";
+import { Webhook } from "svix";
 // Models
 import wallpaperModel from "./models/image.model.js";
 import userModel from "./models/user.model.js";
-import react from "react";
-
+import bodyParser from "body-parser";
 dotenv.config();
 
 const app = express();
 
 // --- Middleware ---
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Note: Webhook route needs raw body, so we place it BEFORE express.json() 
+// or use the specific handler within the route.
 app.use(cors({
   origin: "http://localhost:5173",
   credentials: true
@@ -28,23 +27,59 @@ const imagekit = new ImageKit({
   urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT
 });
 
-// --- Multer Configuration (Memory Storage) ---
-// This keeps files in RAM temporarily instead of writing to your hard drive
+// --- Multer Configuration ---
 const storage = multer.memoryStorage();
-const upload = multer({ 
+const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 } // Optional: Limit size to 5MB
+  limits: { fileSize: 5 * 1024 * 1024 }
 });
 
 // --- Routes ---
 
-// Health Check
+/**
+ * 👤 User Sign Up / Sync (Clerk Webhook)
+ * We use express.raw to ensure the signature verification works correctly.
+ */
+app.post('/api/webhooks/clerk', bodyParser.raw({ type: 'application/json' }), async (req, res) => {
+  const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET;
+
+  // Verify the webhook signature
+  const wh = new Webhook(WEBHOOK_SECRET);
+  const payload = req.body.toString();
+  const headers = req.headers;
+  try {
+    const evt = wh.verify(payload, headers);
+    const { id, first_name, last_name, username } = evt.data;
+    const eventType = evt.type;
+    console.log(wh, payload, headers, evt, eventType)
+
+    if (eventType === 'user.created') {
+      const { first_name, last_name, image_url, username, email_addresses } = evt.data;
+
+      const email = email_addresses[0]?.email_address;
+      const fullName = `${first_name} ${last_name}`;
+      const user = await userModel.create({ clerkId: id, email, username, fullName, })
+      // Example: await User.create({ clerkId: id, name: `${first_name} ${last_name}`, username });
+      console.log(`User ${id} was created`);
+      console.log(user)
+    }
+
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    return res.status(400).json({ message: 'Webhook verification failed' });
+  }
+});
+
+// Standard JSON middleware for all other routes
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+/**
+ * 🏠 Health Check
+ */
 app.get("/", (req, res) => {
   res.send("Wallpaper API is running 🚀");
 });
-
-// Favicon Fix
-app.get('/favicon.ico', (req, res) => res.status(204).end());
 
 /**
  * 📤 Upload Wallpaper
@@ -57,7 +92,7 @@ app.post("/upload", upload.single("image"), async (req, res) => {
 
     const { title, description, tags } = req.body;
 
-    // 1. Upload to ImageKit via Buffer
+    // 1. Upload to ImageKit
     const response = await imagekit.upload({
       file: req.file.buffer,
       fileName: req.file.originalname,
@@ -84,38 +119,6 @@ app.post("/upload", upload.single("image"), async (req, res) => {
 });
 
 /**
- * 👤 User Sign Up / Sync
- */
-app.post('/api/webhooks/clerk', bodyParser.raw({ type: 'application/json' }), async (req, res) => {
-  const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET;
-
-  // Verify the webhook signature
-  const wh = new Webhook(WEBHOOK_SECRET);
-  const payload = req.body.toString();
-  const headers = req.headers;
-  try {
-    const evt = wh.verify(payload, headers);
-    const { id, first_name, last_name, username } = evt.data;
-    const eventType = evt.type;
-    console.log(wh,payload,headers,evt,eventType)
-    
-    if (eventType === 'user.created') {
-     const { first_name, last_name, image_url, username, email_addresses } = evt.data;
-      
-      const email = email_addresses[0]?.email_address;
-      const fullName = `${first_name} ${last_name}`;
-      const user = await userModel.create({ clerkId: id, email, username, fullName, })
-      // Example: await User.create({ clerkId: id, name: `${first_name} ${last_name}`, username });
-      console.log(`User ${id} was created`);
-      console.log(user)
-    }
-
-    return res.status(200).json({ success: true });
-  } catch (err) {
-    return res.status(400).json({ message: 'Webhook verification failed' });
-  }
-});
-/**
  * 📥 Get All Wallpapers
  */
 app.get("/getWall", async (req, res) => {
@@ -133,4 +136,7 @@ app.get("/getWall", async (req, res) => {
   }
 });
 
-export default app;
+// Favicon Fix
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
+export default app;  
