@@ -33,6 +33,7 @@ const wallpaperSchema = new mongoose.Schema(
       enum: ["mobile", "desktop"],
       default: ["desktop"], // 👈 if nothing given, select desktop
     },
+    likes: { type: [String], default: [] }, // Array of User IDs,
     postedBy : String,
     postedByName : String
   },

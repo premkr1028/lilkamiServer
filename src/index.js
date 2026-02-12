@@ -157,6 +157,48 @@ app.get("/getWall", async (req, res) => {
   }
 });
 
+app.get("/api/get-my-wallpaper", async (req, res) => {
+  try {
+    // 1. Extract the specific field from the body
+   const { id } = req.query;
+
+    // 2. Use 'await' because database queries take time
+    const myWallpapers = await wallpaperModel.find({ postedBy: id });
+
+    // 3. Send the response
+    res.status(200).json({
+      success: true,
+      wallpaper: myWallpapers
+    });
+  } catch (error) {
+    // 4. Always include error handling for DB failures
+    res.status(500).json({
+      success: false,
+      message: "Error fetching wallpapers",
+      error: error.message
+    });
+  }
+});
+
+app.put("/api/wallpaper/like", async (req, res) => {
+  const { wallpaperId, userId } = req.body;
+
+  try {   
+    const updatedWallpaper = await wallpaperModel.findByIdAndUpdate(
+      wallpaperId,
+      { $addToSet: { likes: userId } }, // Prevents duplicate likes
+      { new: true } // Returns the updated document
+    );
+
+    res.status(200).json({ 
+      success: true, 
+      likesCount: updatedWallpaper.likes.length,
+      likes: updatedWallpaper.likes 
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 // Favicon Fix
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 connectDB()
