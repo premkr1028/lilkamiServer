@@ -100,7 +100,7 @@ app.post("/upload", upload.single("image"), async (req, res) => {
       return res.status(400).json({ message: "No image file provided" });
     }
 
-    const { title, description, tags } = req.body;
+    const { title, description, tags, postedBy, postedByName } = req.body;
 
     // 1. Upload to ImageKit
     const response = await imagekit.upload({
@@ -114,7 +114,9 @@ app.post("/upload", upload.single("image"), async (req, res) => {
       title,
       description,
       tags: tags ? tags.split(",").map(tag => tag.trim()) : [],
-      imageUrl: response.url
+      imageUrl: response.url,
+      postedBy,
+      postedByName
     });
 
     res.status(201).json({

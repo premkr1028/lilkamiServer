@@ -33,6 +33,8 @@ const wallpaperSchema = new mongoose.Schema(
       enum: ["mobile", "desktop"],
       default: ["desktop"], // 👈 if nothing given, select desktop
     },
+    postedBy : String,
+    postedByName : String
   },
   { timestamps: true }
 );
