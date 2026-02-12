@@ -48,39 +48,39 @@ app.post('/api/webhooks/clerk', bodyParser.raw({ type: 'application/json' }), as
   const wh = new Webhook(WEBHOOK_SECRET);
   const payload = req.body.toString();
   const headers = req.headers;
-try {
-  const evt = wh.verify(payload, headers);
-  const eventType = evt.type;
+  try {
+    const evt = wh.verify(payload, headers);
+    const eventType = evt.type;
 
-  if (eventType === 'user.created') {
-    const userData = evt.data;
-    
-    // 1. Safe data extraction
-    const { id, first_name, last_name, username, email_addresses } = userData;
-    const email = email_addresses?.[0]?.email_address;
-    const fullName = `${first_name ?? ''} ${last_name ?? ''}`.trim();
+    if (eventType === 'user.created') {
+      const userData = evt.data;
 
-    // 2. Check if user already exists to prevent "Duplicate Key" errors
-    const existingUser = await userModel.findOne({ clerkId: id });
-    
-    if (!existingUser) {
-      const user = await userModel.create({ 
-        clerkId: id, 
-        email, 
-        userName: username || `user_${id.slice(-6)}`, // Fallback username
-        fullName, 
-      });
-      console.log("User successfully created:", user._id);
-    } else {
-      console.log("User already exists, skipping creation.");
+      // 1. Safe data extraction
+      const { id, first_name, last_name, username, email_addresses } = userData;
+      const email = email_addresses?.[0]?.email_address;
+      const fullName = `${first_name ?? ''} ${last_name ?? ''}`.trim();
+
+      // 2. Check if user already exists to prevent "Duplicate Key" errors
+      const existingUser = await userModel.findOne({ clerkId: id });
+
+      if (!existingUser) {
+        const user = await userModel.create({
+          clerkId: id,
+          email,
+          userName: username || `user_${id.slice(-6)}`, // Fallback username
+          fullName,
+        });
+        console.log("User successfully created:", user._id);
+      } else {
+        console.log("User already exists, skipping creation.");
+      }
     }
-  }
 
-  return res.status(200).json({ success: true });
-} catch (err) {
-  console.error("Webhook Error:", err.message);
-  return res.status(400).json({ message: 'Webhook verification failed' });
-}
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    console.error("Webhook Error:", err.message);
+    return res.status(400).json({ message: 'Webhook verification failed' });
+  }
 });
 
 // Standard JSON middleware for all other routes
@@ -118,7 +118,16 @@ app.post("/upload", upload.single("image"), async (req, res) => {
       postedBy,
       postedByName
     });
+    const updatedUser = await userModel.findOneAndUpdate(
+      { clerkId: postedBy },
+      { $push: { postWallpapers: newWallpaper._id } }, // Use _id
+      { new: true }
+    );
 
+    if (!updatedUser) {
+      // Optional: Handle case where user isn't found
+      console.warn("Wallpaper created but user not found to link.");
+    }
     res.status(201).json({
       message: "Wallpaper uploaded successfully",
       wallpaper: newWallpaper
