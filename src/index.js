@@ -181,14 +181,23 @@ app.get("/api/get-my-wallpaper", async (req, res) => {
 });
 
 app.put("/api/wallpaper/like", async (req, res) => {
-  const { wallpaperId, userId } = req.body;
-  const {doing} = req.query
+  const { wallpaperId, userId, doing } = req.body;
+  
   try {   
+    const updateQuery = doing === "like" 
+      ? { $addToSet: { likes: userId } } 
+      : { $pull: { likes: userId } };
+
     const updatedWallpaper = await wallpaperModel.findByIdAndUpdate(
       wallpaperId,
-        doing == "like" ?  { $addToSet: { likes: userId } } : { $pull: { likes: userId } }, // Prevents duplicate likes
-      { new: true } // Returns the updated document
+      updateQuery,
+      { new: true }
     );
+
+    // 🛡️ Safety check: If wallpaperId was invalid
+    if (!updatedWallpaper) {
+      return res.status(404).json({ success: false, message: "Wallpaper not found" });
+    }
 
     res.status(200).json({ 
       success: true, 
