@@ -161,7 +161,7 @@ app.get("/api/get-my-wallpaper", async (req, res) => {
   try {
     // 1. Extract the specific field from the body
    const { id } = req.query;
-
+  
     // 2. Use 'await' because database queries take time
     const myWallpapers = await wallpaperModel.find({ postedBy: id });
 
@@ -182,11 +182,11 @@ app.get("/api/get-my-wallpaper", async (req, res) => {
 
 app.put("/api/wallpaper/like", async (req, res) => {
   const { wallpaperId, userId } = req.body;
-
+  const {doing} = req.query
   try {   
     const updatedWallpaper = await wallpaperModel.findByIdAndUpdate(
       wallpaperId,
-      { $addToSet: { likes: userId } }, // Prevents duplicate likes
+        doing == "like" ?  { $addToSet: { likes: userId } } : { $pull: { likes: userId } }, // Prevents duplicate likes
       { new: true } // Returns the updated document
     );
 
