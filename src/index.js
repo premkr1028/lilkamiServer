@@ -182,41 +182,46 @@ app.get("/api/get-my-wallpaper", async (req, res) => {
 
 app.put("/api/wallpaper/like", async (req, res) => {
   const { wallpaperId, userId, doing } = req.body;
-  
-  try {   
-    const updateQuery = doing === "like" 
-      ? { $addToSet: { likes: userId } } 
-      : { $pull: { likes: userId } };
+
+  try {
+    const isLiking = doing === "like";
     
+    // 1. Prepare Update Objects
+    const wallpaperUpdate = isLiking ? { $addToSet: { likes: userId } } : { $pull: { likes: userId } };
+    const userUpdate = isLiking ? { $addToSet: { likedWallpaper: wallpaperId } } : { $pull: { likedWallpaper: wallpaperId } };
+
+    // 2. Update Wallpaper first
     const updatedWallpaper = await wallpaperModel.findByIdAndUpdate(
       wallpaperId,
-      updateQuery,
+      wallpaperUpdate,
       { new: true }
     );
-    // Inside your app.put route:
 
-const userUpdate = doing === "like" 
-  ? { $addToSet: { likedWallpaper: wallpaperId } } 
-  : { $pull: { likedWallpaper: wallpaperId } };
-
-const user = await userModel.findOneAndUpdate(
-  { clerkId: userId }, // 1st arg: Filter
-  userUpdate,          // 2nd arg: Update
-  { new: true }        // 3rd arg: Options
-);
-    
-    // 🛡️ Safety check: If wallpaperId was invalid
     if (!updatedWallpaper) {
       return res.status(404).json({ success: false, message: "Wallpaper not found" });
     }
 
-    res.status(200).json({ 
-      success: true, 
+    // 3. Update User (using clerkId as your identifier)
+    const updatedUser = await userModel.findOneAndUpdate(
+      { clerkId: userId },
+      userUpdate,
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // 4. Final Response
+    res.status(200).json({
+      success: true,
       likesCount: updatedWallpaper.likes.length,
-      likes: updatedWallpaper.likes 
+      isLiked: isLiking // Helpful for frontend UI state
     });
+
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error("Like Error:", error);
+    res.status(500).json({ success: false, error: "Internal Server Error" });
   }
 });
 app.get("/api/get-liked-wallpaper", async (req, res) => {
