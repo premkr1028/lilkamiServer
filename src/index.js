@@ -186,11 +186,11 @@ app.put("/api/wallpaper/like", async (req, res) => {
   try {
     const isLiking = doing === "like";
     
-    // 1. Prepare Update Objects
     const wallpaperUpdate = isLiking ? { $addToSet: { likes: userId } } : { $pull: { likes: userId } };
-    const userUpdate = isLiking ? { $addToSet: { likedWallpaper: wallpaperId } } : { $pull: { likedWallpaper: wallpaperId } };
+    
+    // FIX: Change 'likedWallpaper' to 'likedWallpapers'
+    const userUpdate = isLiking ? { $addToSet: { likedWallpapers: wallpaperId } } : { $pull: { likedWallpapers: wallpaperId } };
 
-    // 2. Update Wallpaper first
     const updatedWallpaper = await wallpaperModel.findByIdAndUpdate(
       wallpaperId,
       wallpaperUpdate,
@@ -201,7 +201,6 @@ app.put("/api/wallpaper/like", async (req, res) => {
       return res.status(404).json({ success: false, message: "Wallpaper not found" });
     }
 
-    // 3. Update User (using clerkId as your identifier)
     const updatedUser = await userModel.findOneAndUpdate(
       { clerkId: userId },
       userUpdate,
@@ -212,11 +211,10 @@ app.put("/api/wallpaper/like", async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    // 4. Final Response
     res.status(200).json({
       success: true,
       likesCount: updatedWallpaper.likes.length,
-      isLiked: isLiking // Helpful for frontend UI state
+      isLiked: isLiking
     });
 
   } catch (error) {
@@ -238,7 +236,7 @@ app.get("/api/get-liked-wallpaper", async (req, res) => {
       });
     }
     
-    // Use Promise.all to wait for all async operations
+    // Use Promise.all to wait for all async operations 
     const likedWallpapersArray = await Promise.all(
       user.likedWallpapers.map(async (wallpaperId) => {
         const likedWallpaper = await wallpaperModel.findById(wallpaperId);
