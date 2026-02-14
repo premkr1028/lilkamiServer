@@ -187,13 +187,24 @@ app.put("/api/wallpaper/like", async (req, res) => {
     const updateQuery = doing === "like" 
       ? { $addToSet: { likes: userId } } 
       : { $pull: { likes: userId } };
-
+    
     const updatedWallpaper = await wallpaperModel.findByIdAndUpdate(
       wallpaperId,
       updateQuery,
       { new: true }
     );
+    // Inside your app.put route:
 
+const userUpdate = doing === "like" 
+  ? { $addToSet: { likedWallpaper: wallpaperId } } 
+  : { $pull: { likedWallpaper: wallpaperId } };
+
+const user = await userModel.findOneAndUpdate(
+  { clerkId: userId }, // 1st arg: Filter
+  userUpdate,          // 2nd arg: Update
+  { new: true }        // 3rd arg: Options
+);
+    
     // 🛡️ Safety check: If wallpaperId was invalid
     if (!updatedWallpaper) {
       return res.status(404).json({ success: false, message: "Wallpaper not found" });
@@ -206,6 +217,43 @@ app.put("/api/wallpaper/like", async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+app.get("/api/get-liked-wallpaper", async (req, res) => {
+  try {
+    const { id } = req.query;
+    
+    // Use findOne instead of find
+    const user = await userModel.findOne({ clerkId: id });
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+    
+    // Use Promise.all to wait for all async operations
+    const likedWallpapersArray = await Promise.all(
+      user.likedWallpapers.map(async (wallpaperId) => {
+        const likedWallpaper = await wallpaperModel.findById(wallpaperId);
+        return likedWallpaper?.imageUrl; // Optional chaining for safety
+      })
+    );
+    
+    // Filter out any null/undefined values
+    const validWallpapers = likedWallpapersArray.filter(Boolean);
+    
+    res.status(200).json({
+      success: true,
+      likedWallpaper: validWallpapers
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching wallpapers",
+      error: error.message
+    });
   }
 });
 // Favicon Fix

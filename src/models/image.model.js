@@ -37,7 +37,7 @@ const wallpaperSchema = new mongoose.Schema(
     postedBy : String,
     postedByName : String
   },
-  { timestamps: true }
+  { timestamps: true }  
 );
 
 export default mongoose.model("Wallpaper", wallpaperSchema);
